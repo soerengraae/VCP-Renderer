@@ -1,1 +1,9 @@
-build*/
+# editors
+*.swp
+*~
+
+# build
+/build*/
+
+# macos
+.DS_Store
