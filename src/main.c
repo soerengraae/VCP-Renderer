@@ -6,15 +6,20 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/printk.h>
 
+#define CONFIG_BT_DEVICE_NAME "Special Course Peripheral Server"
+#define BT_DEVICE_NAME_FULL CONFIG_BT_DEVICE_NAME
+#define BT_DEVICE_NAME_SHORT "Special Course"
+
 /* Advertising payload:
  * - Device Name
  * - Flags
  * - Immediate Alert Service UUID: 0x1802
+ * - Volume Control Service UUID: 0x1844
  */
 static const struct bt_data ad[] = {
-        BT_DATA_BYTES(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME),
+  BT_DATA_BYTES(BT_DATA_NAME_SHORTENED, BT_DEVICE_NAME_SHORT),
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-	BT_DATA_BYTES(BT_DATA_UUID16_ALL, 0x02, 0x18), /* 0x1802 little-endian */
+	BT_DATA_BYTES(BT_DATA_UUID16_ALL, 0x02, 0x18, 0x44, 0x18), /* 0x1802 IAS, 0x1844 VCS*/
 };
 
 /* Use LED0 from the board's devicetree alias */
@@ -22,6 +27,18 @@ static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 static struct k_work_delayable blink_work;
 static struct k_work adv_start_work;
 static uint8_t alert_level;
+
+struct vcs_state {
+	uint8_t volume_setting;  // current volume
+	uint8_t mute;            // 0 or 1
+	uint8_t change_counter;  // increment on change
+};
+
+static struct vcs_state volume_state = {
+	.volume_setting = 1,  // initial volume
+	.mute = 2,             // not muted
+	.change_counter = 3,   // no changes
+};
 
 static void led_off(void)  { gpio_pin_set_dt(&led, 0); }
 static void led_on(void)   { gpio_pin_set_dt(&led, 1); }
@@ -94,6 +111,13 @@ static ssize_t write_alert(struct bt_conn *conn, const struct bt_gatt_attr *attr
 	return len;
 }
 
+/* GATT read handler for Volume State (0x2B7D) */
+static ssize_t read_volume_state(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
+{
+	return bt_gatt_attr_read(conn, attr, buf, len, offset,
+				 &volume_state, sizeof(volume_state));
+}
+
 static void connected(struct bt_conn *conn, uint8_t err)
 {
 	if (err) {
@@ -122,6 +146,14 @@ BT_GATT_SERVICE_DEFINE(ias_svc,
 			       BT_GATT_CHRC_WRITE_WITHOUT_RESP,
 			       BT_GATT_PERM_WRITE,
 			       NULL, write_alert, &alert_level),
+);
+
+BT_GATT_SERVICE_DEFINE(vcs_svc,
+	BT_GATT_PRIMARY_SERVICE(BT_UUID_VCS),
+	BT_GATT_CHARACTERISTIC(BT_UUID_VCS_STATE,
+			       BT_GATT_CHRC_READ,
+			       BT_GATT_PERM_READ,
+			       read_volume_state, NULL, &volume_state),
 );
 
 static void bt_ready(int err)
