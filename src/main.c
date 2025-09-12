@@ -53,6 +53,8 @@ static void adv_start_handler(struct k_work *work)
 
 static void connected(struct bt_conn *conn, uint8_t err)
 {
+	(void)(conn);
+
 	if (err) {
 		printk("Connection failed, err 0x%02x %s\n", err, bt_hci_err_to_str(err));
 	} else {
@@ -83,19 +85,20 @@ static void bt_ready(int err)
 
 	printk("Bluetooth ready, starting advertising\n");
 
+	k_work_init(&adv_start_work, adv_start_handler);
 	k_work_submit(&adv_start_work);
 }
 
 void button_pressed(const struct device *dev, struct gpio_callback *cb,
 		    uint32_t pins)
 {
-	printk("Volume State:\n");
+	printk("\nVolume State:\n");
 	printk("  Volume Setting: %d\n", volume_state.volume_setting);
 	printk("  Mute: %d\n", volume_state.mute);
 	printk("  Change Counter: %d\n", volume_state.change_counter);
 
 	printk("Volume Flags:\n");
-	printk("	Volume_Setting_Persisted: %d\n", (volume_flags & 0x01)); // Get's the first bit (not really needed since it's the only one defined anyway)
+	printk("  Volume_Setting_Persisted: %d\n", (volume_flags & 0x01)); // Get's the first bit (not really needed since it's the only one defined anyway)
 }
 
 /* GATT: Primary service */
@@ -145,8 +148,7 @@ int8_t info_button_init() {
 	return 0;
 }
 
-int main(void)
-{
+void init() {
 	int err;
 	int ret;
 
@@ -161,18 +163,21 @@ int main(void)
 		return 0;
 	}
 
-	gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
-
-	k_work_init(&adv_start_work, adv_start_handler);
 	k_work_init_delayable(&status_led_work, status_led_handler);
+	k_work_schedule(&status_led_work, K_MSEC(1000));
+
+	gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
 
 	err = bt_enable(bt_ready);
 	if (err) {
 		printk("bt_enable failed (%d)\n", err);
 		return 0;
 	}
+}
 
-	k_work_schedule(&status_led_work, K_MSEC(1000));
+int main(void)
+{
+	init();
 
 	for (;;) {
 		k_sleep(K_SECONDS(1));
