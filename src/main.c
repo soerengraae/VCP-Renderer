@@ -119,9 +119,11 @@ BT_GATT_SERVICE_DEFINE(vcs_svc,
 	BT_GATT_CCC(volume_flags_cccd_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 );
 
-int8_t info_button_init() {
+uint8_t init() {
+	int err;
 	int ret;
 
+	// Initialize the info button
 	if (!gpio_is_ready_dt(&info_button)) {
 		printk("Error: info button device %s is not ready\n",
 		       info_button.port->name);
@@ -144,28 +146,26 @@ int8_t info_button_init() {
 	gpio_init_callback(&button_cb, button_pressed, BIT(info_button.pin));
 	gpio_add_callback(info_button.port, &button_cb);
 
-	return 0;
-}
-
-uint8_t init() {
-	int err;
-	int ret;
-
-	ret = info_button_init();
 	if (ret != 0) {
 		printk("Failed to initialize info button: %d\n", ret);
 		return 0;
 	}
 
+	// Initialize the status LED
 	if (!device_is_ready(status_led.port)) {
 		printk("Status LED device not ready\n");
 		return 0;
 	}
-	gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
 
+	ret = gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
+	if (ret != 0) {
+		printk("Failed to configure status LED pin: %d\n", ret);
+		return 0;
+	}
 	k_work_init_delayable(&status_led_work, status_led_handler);
 	k_work_schedule(&status_led_work, K_MSEC(1000));
 
+	// Initialize the Bluetooth Subsystem
 	err = bt_enable(bt_ready);
 	if (err) {
 		printk("bt_enable failed (%d)\n", err);

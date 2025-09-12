@@ -103,6 +103,10 @@ ssize_t write_volume_control_point(struct bt_conn *conn, const struct bt_gatt_at
 			volume_up(&volume_state.volume_setting);
 			break;
 		case VOLUME_SET_ABSOLUTE:
+			if (len != 3) {
+				printk("Invalid attribute length for VOLUME_SET_ABSOLUTE: %d\n", len);
+				return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+			}
 			operand = ((uint8_t *)buf)[2]; // Casting it to uint8_t makes sure it's in 0-255 range
 			volume_set(&volume_state.volume_setting, operand);
 			break;
