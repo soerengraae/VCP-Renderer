@@ -124,7 +124,7 @@ ssize_t write_volume_control_point(struct bt_conn *conn, const struct bt_gatt_at
 		case VOLUME_DOWN_UNMUTE:
 		case VOLUME_UP_UNMUTE:
 		case VOLUME_SET_ABSOLUTE:
-			volume_flags_set(0x01, conn); // Volume changed
+			volume_flags_set((0x01 << 0), conn); // Volume changed - set Volume_Setting_Persisted flag
 			break;
 
 		default:
