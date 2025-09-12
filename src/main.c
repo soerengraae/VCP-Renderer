@@ -27,7 +27,16 @@ static const struct bt_data ad[] = {
 static const struct gpio_dt_spec info_button = GPIO_DT_SPEC_GET_OR(DT_ALIAS(sw0), gpios, {0});
 static const struct gpio_dt_spec status_led = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
 static struct k_work adv_start_work;
-static struct gpio_callback button_cb_data;
+static struct k_work_delayable status_led_work;
+static struct gpio_callback button_cb;
+
+static void status_led_handler(struct k_work *work)
+{
+	(void)(work);
+
+	gpio_pin_toggle_dt(&status_led);
+	k_work_schedule(&status_led_work, K_MSEC(1000));
+}
 
 static void adv_start_handler(struct k_work *work)
 {
@@ -48,6 +57,8 @@ static void connected(struct bt_conn *conn, uint8_t err)
 		printk("Connection failed, err 0x%02x %s\n", err, bt_hci_err_to_str(err));
 	} else {
 		printk("Connected\n");
+		k_work_cancel_delayable(&status_led_work);
+		gpio_pin_set_dt(&status_led, 1); // Turn on LED
 	}
 }
 
@@ -55,6 +66,7 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	printk("Disconnected, reason 0x%02x %s\n", reason, bt_hci_err_to_str(reason));
 	k_work_submit(&adv_start_work);
+	k_work_schedule(&status_led_work, K_MSEC(1000));
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -81,6 +93,9 @@ void button_pressed(const struct device *dev, struct gpio_callback *cb,
 	printk("  Volume Setting: %d\n", volume_state.volume_setting);
 	printk("  Mute: %d\n", volume_state.mute);
 	printk("  Change Counter: %d\n", volume_state.change_counter);
+
+	printk("Volume Flags:\n");
+	printk("	Volume_Setting_Persisted: %d\n", (volume_flags & 0x01)); // Get's the first bit (not really needed since it's the only one defined anyway)
 }
 
 /* GATT: Primary service */
@@ -102,35 +117,44 @@ BT_GATT_SERVICE_DEFINE(vcs_svc,
 	BT_GATT_CCC(volume_flags_cccd_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 );
 
-int main(void)
-{
-	int err;
+int8_t info_button_init() {
 	int ret;
 
 	if (!gpio_is_ready_dt(&info_button)) {
 		printk("Error: info button device %s is not ready\n",
 		       info_button.port->name);
-		return 0;
+		return -1;
 	}
 
 	ret = gpio_pin_configure_dt(&info_button, GPIO_INPUT);
 	if (ret != 0) {
 		printk("Error %d: failed to configure %s pin %d\n",
 		       ret, info_button.port->name, info_button.pin);
-		return 0;
+		return ret;
 	}
 
-	ret = gpio_pin_interrupt_configure_dt(&info_button,
-					      GPIO_INT_EDGE_TO_ACTIVE);
+	ret = gpio_pin_interrupt_configure_dt(&info_button, GPIO_INT_EDGE_TO_ACTIVE);
 	if (ret != 0) {
-		printk("Error %d: failed to configure interrupt on %s pin %d\n",
-			ret, info_button.port->name, info_button.pin);
-		return 0;
+		printk("Error %d: failed to configure interrupt on %s pin %d\n", ret, info_button.port->name, info_button.pin);
+		return ret;
 	}
 
-	gpio_init_callback(&button_cb_data, button_pressed, BIT(info_button.pin));
-	gpio_add_callback(info_button.port, &button_cb_data);
-	printk("Set up button at %s pin %d\n", info_button.port->name, info_button.pin);
+	gpio_init_callback(&button_cb, button_pressed, BIT(info_button.pin));
+	gpio_add_callback(info_button.port, &button_cb);
+
+	return 0;
+}
+
+int main(void)
+{
+	int err;
+	int ret;
+
+	ret = info_button_init();
+	if (ret != 0) {
+		printk("Failed to initialize info button: %d\n", ret);
+		return 0;
+	}
 
 	if (!device_is_ready(status_led.port)) {
 		printk("Status LED device not ready\n");
@@ -138,14 +162,17 @@ int main(void)
 	}
 
 	gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
-	
+
 	k_work_init(&adv_start_work, adv_start_handler);
+	k_work_init_delayable(&status_led_work, status_led_handler);
 
 	err = bt_enable(bt_ready);
 	if (err) {
 		printk("bt_enable failed (%d)\n", err);
 		return 0;
 	}
+
+	k_work_schedule(&status_led_work, K_MSEC(1000));
 
 	for (;;) {
 		k_sleep(K_SECONDS(1));
