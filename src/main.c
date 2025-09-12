@@ -5,13 +5,12 @@
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/printk.h>
+#include <zephyr/logging/log.h>
 
 #include "VolumeControlService.h"
 
 #define BT_DEVICE_NAME_FULL CONFIG_BT_DEVICE_NAME
 #define BT_DEVICE_NAME_SHORT "Renderer"
-
-#define MAX_CONNECTED_CLIENTS 5
 
 /* Advertising payload:
  * - Device Name
@@ -148,7 +147,7 @@ int8_t info_button_init() {
 	return 0;
 }
 
-void init() {
+uint8_t init() {
 	int err;
 	int ret;
 
@@ -162,22 +161,26 @@ void init() {
 		printk("Status LED device not ready\n");
 		return 0;
 	}
+	gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
 
 	k_work_init_delayable(&status_led_work, status_led_handler);
 	k_work_schedule(&status_led_work, K_MSEC(1000));
-
-	gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
 
 	err = bt_enable(bt_ready);
 	if (err) {
 		printk("bt_enable failed (%d)\n", err);
 		return 0;
 	}
+
+	return 1;
 }
 
 int main(void)
 {
-	init();
+	if (!init()) {
+		printk("Initialization failed. Stopping.\n");
+		return -1;
+	}
 
 	for (;;) {
 		k_sleep(K_SECONDS(1));
