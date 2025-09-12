@@ -6,8 +6,12 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/sys/printk.h>
 
+#include "VolumeControlService.h"
+
 #define BT_DEVICE_NAME_FULL CONFIG_BT_DEVICE_NAME
 #define BT_DEVICE_NAME_SHORT "Renderer"
+
+#define MAX_CONNECTED_CLIENTS 5
 
 /* Advertising payload:
  * - Device Name
@@ -25,24 +29,6 @@ static const struct gpio_dt_spec status_led = GPIO_DT_SPEC_GET(DT_ALIAS(led1), g
 static struct k_work adv_start_work;
 static struct gpio_callback button_cb_data;
 
-static bool notify_enabled;
-extern const struct bt_gatt_service_static vcs_svc;
-
-struct vcs_volume_state {
-	uint8_t volume_setting;  // current volume
-	uint8_t mute;            // 0 or 1
-	uint8_t change_counter;  // increment on change
-};
-
-static struct vcs_volume_state volume_state = {
-	.volume_setting = 128,  // initial volume
-	.mute = 0,             // not muted
-	.change_counter = 0,   // no changes
-};
-
-//static void status_led_off(void) { gpio_pin_set_dt(&status_led, 0); }
-//static void status_led_on(void)  { gpio_pin_set_dt(&status_led, 1); }
-
 static void adv_start_handler(struct k_work *work)
 {
 	(void)(work);
@@ -54,89 +40,6 @@ static void adv_start_handler(struct k_work *work)
 	} else {
 		printk("Advertising as connectable peripheral\n");
 	}
-}
-
-/* GATT read handler for Volume State (0x2B7D) */
-static ssize_t read_volume_state(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
-{
-	return bt_gatt_attr_read(conn, attr, buf, len, offset,
-				 &volume_state, sizeof(volume_state));
-}
-
-static void volume_state_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value)
-{
-	printk("Volume State CCCD changed: %u\n", value);
-	notify_enabled = (value == BT_GATT_CCC_NOTIFY);
-}
-
-void volume_down(uint8_t *volume) {
-	*volume = *volume == 0 ? 0 : *volume - 1;
-}
-
-void volume_up(uint8_t *volume) {
-	*volume = *volume == 255 ? 255 : *volume + 1;
-}
-
-void volume_unmute(void) {
-	volume_state.mute = 0;
-}
-
-void volume_mute(void) {
-	volume_state.mute = 1;
-}
-
-void change_counter_increment(struct bt_conn *conn) {
-	volume_state.change_counter++;
-	if (notify_enabled) bt_gatt_notify(conn, &vcs_svc.attrs[2], &volume_state, sizeof(volume_state));
-}
-
-/* GATT write handler for Volume Control Point (0x2B7E) */
-static ssize_t write_volume_control_point(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
-{
-	if (offset != 0 || (len != 2 && len != 3)) {
-		printk("Invalid attribute length: %d\n", len);
-		return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
-	}
-
-	uint8_t opcode = ((uint8_t *)buf)[0];
-	uint8_t operand = ((uint8_t *)buf)[1];
-
-	if (operand != volume_state.change_counter) {
-		return 0x80; // Invalid change_counter
-	}
-
-	switch (opcode) {
-		case 0x00: // Relative Volume Down
-			volume_down(&volume_state.volume_setting);
-			break;
-		case 0x01: // Relative Volume Up
-			volume_up(&volume_state.volume_setting);
-			break;
-		case 0x02: // Unmute/Relative Volume Down
-			volume_unmute();
-			volume_down(&volume_state.volume_setting);
-			break;
-		case 0x03: // Unmute/Relative Volume Up
-			volume_unmute();
-			volume_up(&volume_state.volume_setting);
-			break;
-		case 0x04: // Set Absolute Volume
-			operand = ((uint8_t *)buf)[2]; // Casting it to uint8_t makes sure it's in 0-255 range
-			volume_state.volume_setting = operand;
-			break;
-		case 0x05: // Unmute
-			volume_unmute();
-			break;
-		case 0x06: // Mute
-			volume_mute();
-			break;
-		default:
-			return 0x81; // Invalid opcode
-	}
-
-	change_counter_increment(conn);
-
-	return 0; // Success
 }
 
 static void connected(struct bt_conn *conn, uint8_t err)
@@ -151,8 +54,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
 	printk("Disconnected, reason 0x%02x %s\n", reason, bt_hci_err_to_str(reason));
-        printk("Resuming advertising\n");
-        k_work_submit(&adv_start_work);
+	k_work_submit(&adv_start_work);
 }
 
 BT_CONN_CB_DEFINE(conn_callbacks) = {
@@ -185,14 +87,19 @@ void button_pressed(const struct device *dev, struct gpio_callback *cb,
 BT_GATT_SERVICE_DEFINE(vcs_svc,
 	BT_GATT_PRIMARY_SERVICE(BT_UUID_VCS),
 	BT_GATT_CHARACTERISTIC(BT_UUID_VCS_STATE,
-			       BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
-			       BT_GATT_PERM_READ,
-			       read_volume_state, NULL, &volume_state),
-	BT_GATT_CCC(volume_state_ccc_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+		BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
+		BT_GATT_PERM_READ,
+		read_volume_state, NULL, &volume_state),
+	BT_GATT_CCC(volume_state_cccd_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 	BT_GATT_CHARACTERISTIC(BT_UUID_VCS_CONTROL,
-			       BT_GATT_CHRC_WRITE,
-			       BT_GATT_PERM_WRITE,
-			       NULL, write_volume_control_point, NULL),
+		BT_GATT_CHRC_WRITE,
+		BT_GATT_PERM_WRITE,
+		NULL, write_volume_control_point, NULL),
+	BT_GATT_CHARACTERISTIC(BT_UUID_VCS_FLAGS,
+		BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
+		BT_GATT_PERM_READ,
+		read_volume_flags, NULL, &volume_flags),
+	BT_GATT_CCC(volume_flags_cccd_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 );
 
 int main(void)
