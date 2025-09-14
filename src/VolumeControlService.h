@@ -1,12 +1,9 @@
 #ifndef VOLUMECONTROLSERVICE_H
 #define VOLUMECONTROLSERVICE_H
-#endif
 
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
-#include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
-#include <zephyr/bluetooth/hci.h>
 
 #define VOLUME_STEP_SIZE 1
 #define VOLUME_MAX 255
@@ -38,6 +35,7 @@ struct volume_state_t {
 extern uint8_t volume_flags;
 extern struct volume_state_t volume_state;
 
+void notify_volume_state(struct bt_conn *conn);
 ssize_t read_volume_state(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 ssize_t read_volume_flags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 void volume_state_cccd_changed(const struct bt_gatt_attr *attr, uint16_t value);
@@ -49,3 +47,5 @@ void volume_up(uint8_t *volume);
 void volume_mute(void);
 void volume_unmute(void);
 void change_counter_increment(struct bt_conn *conn);
+
+#endif
