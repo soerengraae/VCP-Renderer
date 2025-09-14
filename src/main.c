@@ -4,13 +4,20 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/drivers/gpio.h>
-#include <zephyr/sys/printk.h>
 #include <zephyr/logging/log.h>
 
 #include "VolumeControlService.h"
 
 #define BT_DEVICE_NAME_FULL CONFIG_BT_DEVICE_NAME
 #define BT_DEVICE_NAME_SHORT "Renderer"
+
+LOG_MODULE_REGISTER(app, 4);
+
+static const struct gpio_dt_spec info_button = GPIO_DT_SPEC_GET_OR(DT_ALIAS(sw0), gpios, {0});
+static const struct gpio_dt_spec status_led = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
+static struct k_work adv_start_work;
+static struct k_work_delayable status_led_work;
+static struct gpio_callback button_cb;
 
 /* Advertising payload:
  * - Device Name
@@ -22,12 +29,6 @@ static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA_BYTES(BT_DATA_UUID16_ALL, 0x44, 0x18), /* 0x1844 VCS (little-endian)*/
 };
-
-static const struct gpio_dt_spec info_button = GPIO_DT_SPEC_GET_OR(DT_ALIAS(sw0), gpios, {0});
-static const struct gpio_dt_spec status_led = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
-static struct k_work adv_start_work;
-static struct k_work_delayable status_led_work;
-static struct gpio_callback button_cb;
 
 static void status_led_handler(struct k_work *work)
 {
@@ -41,12 +42,12 @@ static void adv_start_handler(struct k_work *work)
 {
 	(void)(work);
 
-	printk("Starting advertisement\n");
+	LOG_DBG("Starting advertisement\n");
 	int err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (err) {
-		printk("Advertising failed to start (%d)\n", err);
+		LOG_ERR("Advertising failed to start (%d)\n", err);
 	} else {
-		printk("Advertising as connectable peripheral\n");
+		LOG_DBG("Advertising as connectable peripheral\n");
 	}
 }
 
@@ -55,9 +56,9 @@ static void connected(struct bt_conn *conn, uint8_t err)
 	(void)(conn);
 
 	if (err) {
-		printk("Connection failed, err 0x%02x %s\n", err, bt_hci_err_to_str(err));
+		LOG_ERR("Connection failed, err 0x%02x %s\n", err, bt_hci_err_to_str(err));
 	} else {
-		printk("Connected\n");
+		LOG_DBG("Connected\n");
 		k_work_cancel_delayable(&status_led_work);
 		gpio_pin_set_dt(&status_led, 1); // Turn on LED
 	}
@@ -65,7 +66,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
 {
-	printk("Disconnected, reason 0x%02x %s\n", reason, bt_hci_err_to_str(reason));
+	LOG_DBG("Disconnected, reason 0x%02x %s\n", reason, bt_hci_err_to_str(reason));
 	k_work_submit(&adv_start_work);
 	k_work_schedule(&status_led_work, K_MSEC(1000));
 }
@@ -78,26 +79,25 @@ BT_CONN_CB_DEFINE(conn_callbacks) = {
 static void bt_ready(int err)
 {
 	if (err) {
-		printk("Bluetooth init failed (%d)\n", err);
+		LOG_ERR("Bluetooth init failed (%d)\n", err);
 		return;
 	}
 
-	printk("Bluetooth ready, starting advertising\n");
+	LOG_DBG("Bluetooth ready, starting advertising\n");
 
 	k_work_init(&adv_start_work, adv_start_handler);
 	k_work_submit(&adv_start_work);
 }
 
-void button_pressed(const struct device *dev, struct gpio_callback *cb,
-		    uint32_t pins)
+void button_pressed(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
 {
-	printk("\nVolume State:\n");
-	printk("  Volume Setting: %d\n", volume_state.volume_setting);
-	printk("  Mute: %d\n", volume_state.mute);
-	printk("  Change Counter: %d\n", volume_state.change_counter);
+	LOG_INF("\nVolume State:\n");
+	LOG_INF("  Volume Setting: %d\n", volume_state.volume_setting);
+	LOG_INF("  Mute: %d\n", volume_state.mute);
+	LOG_INF("  Change Counter: %d\n", volume_state.change_counter);
 
-	printk("Volume Flags:\n");
-	printk("  Volume_Setting_Persisted: %d\n", (volume_flags & 0x01)); // Get's the first bit (not really needed since it's the only one defined anyway)
+	LOG_INF("Volume Flags:\n");
+	LOG_INF("  Volume_Setting_Persisted: %d\n", (volume_flags & 0x01)); // Get's the first bit (not really needed since it's the only one defined anyway)
 }
 
 /* GATT: Primary service */
@@ -125,21 +125,19 @@ uint8_t init() {
 
 	// Initialize the info button
 	if (!gpio_is_ready_dt(&info_button)) {
-		printk("Error: info button device %s is not ready\n",
-		       info_button.port->name);
+		LOG_ERR("Error: info button device %s is not ready\n", info_button.port->name);
 		return -1;
 	}
 
 	ret = gpio_pin_configure_dt(&info_button, GPIO_INPUT);
 	if (ret != 0) {
-		printk("Error %d: failed to configure %s pin %d\n",
-		       ret, info_button.port->name, info_button.pin);
+		LOG_ERR("Error %d: failed to configure %s pin %d\n", ret, info_button.port->name, info_button.pin);
 		return ret;
 	}
 
 	ret = gpio_pin_interrupt_configure_dt(&info_button, GPIO_INT_EDGE_TO_ACTIVE);
 	if (ret != 0) {
-		printk("Error %d: failed to configure interrupt on %s pin %d\n", ret, info_button.port->name, info_button.pin);
+		LOG_ERR("Error %d: failed to configure interrupt on %s pin %d\n", ret, info_button.port->name, info_button.pin);
 		return ret;
 	}
 
@@ -147,19 +145,19 @@ uint8_t init() {
 	gpio_add_callback(info_button.port, &button_cb);
 
 	if (ret != 0) {
-		printk("Failed to initialize info button: %d\n", ret);
+		LOG_ERR("Failed to initialize info button: %d\n", ret);
 		return 0;
 	}
 
 	// Initialize the status LED
 	if (!device_is_ready(status_led.port)) {
-		printk("Status LED device not ready\n");
+		LOG_ERR("Status LED device not ready\n");
 		return 0;
 	}
 
 	ret = gpio_pin_configure_dt(&status_led, GPIO_OUTPUT_ACTIVE);
 	if (ret != 0) {
-		printk("Failed to configure status LED pin: %d\n", ret);
+		LOG_ERR("Failed to configure status LED pin: %d\n", ret);
 		return 0;
 	}
 	k_work_init_delayable(&status_led_work, status_led_handler);
@@ -168,7 +166,7 @@ uint8_t init() {
 	// Initialize the Bluetooth Subsystem
 	err = bt_enable(bt_ready);
 	if (err) {
-		printk("bt_enable failed (%d)\n", err);
+		LOG_ERR("bt_enable failed (%d)\n", err);
 		return 0;
 	}
 
@@ -178,7 +176,7 @@ uint8_t init() {
 int main(void)
 {
 	if (!init()) {
-		printk("Initialization failed. Stopping.\n");
+		LOG_ERR("Initialization failed. Stopping.\n");
 		return -1;
 	}
 
