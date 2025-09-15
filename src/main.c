@@ -92,9 +92,9 @@ static void bt_ready(int err)
 void button_pressed(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
 {
 	LOG_INF("\nVolume State:\n");
-	LOG_INF("  Volume Setting: %d\n", volume_state.volume_setting);
-	LOG_INF("  Mute: %d\n", volume_state.mute);
-	LOG_INF("  Change Counter: %d\n", volume_state.change_counter);
+	LOG_INF("  Volume Setting: %d\n", vcs_state.volume_setting);
+	LOG_INF("  Mute: %d\n", vcs_state.mute);
+	LOG_INF("  Change Counter: %d\n", vcs_state.change_counter);
 
 	LOG_INF("Volume Flags:\n");
 	LOG_INF("  Volume_Setting_Persisted: %d\n", (volume_flags & 0x01)); // Get's the first bit (not really needed since it's the only one defined anyway)
@@ -106,7 +106,7 @@ BT_GATT_SERVICE_DEFINE(vcs_svc,
 	BT_GATT_CHARACTERISTIC(BT_UUID_VCS_STATE,
 		BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
 		BT_GATT_PERM_READ,
-		read_volume_state, NULL, &volume_state),
+		read_volume_state, NULL, &vcs_state),
 	BT_GATT_CCC(volume_state_cccd_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 	BT_GATT_CHARACTERISTIC(BT_UUID_VCS_CONTROL,
 		BT_GATT_CHRC_WRITE,

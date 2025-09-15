@@ -26,14 +26,14 @@ enum opcodes {
   VOLUME_MUTE
 };
 
-struct volume_state_t {
+struct volume_state {
 	uint8_t volume_setting;
 	uint8_t mute;
 	uint8_t change_counter;
 };
 
 extern uint8_t volume_flags;
-extern struct volume_state_t volume_state;
+extern struct volume_state vcs_state;
 
 void notify_volume_state(struct bt_conn *conn);
 ssize_t read_volume_state(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);

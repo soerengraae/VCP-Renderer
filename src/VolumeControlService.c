@@ -7,7 +7,7 @@ uint8_t volume_flags = 0x00;
 static bool notify_state_enabled;
 static bool notify_flags_enabled;
 
-struct volume_state_t volume_state = {
+struct volume_state vcs_state = {
 	.volume_setting = 128,
 	.mute = 0,
 	.change_counter = 0,
@@ -15,22 +15,20 @@ struct volume_state_t volume_state = {
 
 void notify_volume_state(struct bt_conn *conn) {
     if (notify_state_enabled) {
-        bt_gatt_notify(conn, &vcs_svc.attrs[2], &volume_state, sizeof(volume_state));
+        bt_gatt_notify(conn, &vcs_svc.attrs[2], &vcs_state, sizeof(vcs_state));
     }
 }
 
 /* GATT read handler for Volume State (0x2B7D) */
 ssize_t read_volume_state(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
-	return bt_gatt_attr_read(conn, attr, buf, len, offset,
-				 &volume_state, sizeof(volume_state));
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &vcs_state, sizeof(vcs_state));
 }
 
 /* GATT read handler for Volume State Flags (0x2B7F) */
 ssize_t read_volume_flags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
-	return bt_gatt_attr_read(conn, attr, buf, len, offset,
-				 &volume_flags, sizeof(volume_flags));
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &volume_flags, sizeof(volume_flags));
 }
 
 /* Volume State Characteristic Client Configuration Descriptor (CCCD) changed handler */
@@ -68,15 +66,15 @@ void volume_set(uint8_t *volume, uint8_t new_volume) {
 }
 
 void volume_unmute(void) {
-	volume_state.mute = 0;
+	vcs_state.mute = 0;
 }
 
 void volume_mute(void) {
-	volume_state.mute = 1;
+	vcs_state.mute = 1;
 }
 
 void change_counter_increment(struct bt_conn *conn) {
-	volume_state.change_counter++;
+	vcs_state.change_counter++;
 	notify_volume_state(conn);
 }
 
@@ -91,25 +89,25 @@ ssize_t write_volume_control_point(struct bt_conn *conn, const struct bt_gatt_at
 	uint8_t opcode = ((uint8_t *)buf)[0];
 	uint8_t operand = ((uint8_t *)buf)[1];
 
-	if (operand != volume_state.change_counter) {
-		LOG_WRN("Invalid Change Counter: %d (expected %d)\n", operand, volume_state.change_counter);
+	if (operand != vcs_state.change_counter) {
+		LOG_WRN("Invalid Change Counter: %d (expected %d)\n", operand, vcs_state.change_counter);
 		return BT_GATT_ERR(ERR_INVALID_CHANGE_COUNTER);
 	}
 
 	switch (opcode) {
 		case VOLUME_DOWN:
-			volume_down(&volume_state.volume_setting);
+			volume_down(&vcs_state.volume_setting);
 			break;
 		case VOLUME_UP:
-			volume_up(&volume_state.volume_setting);
+			volume_up(&vcs_state.volume_setting);
 			break;
 		case VOLUME_DOWN_UNMUTE:
 			volume_unmute();
-			volume_down(&volume_state.volume_setting);
+			volume_down(&vcs_state.volume_setting);
 			break;
 		case VOLUME_UP_UNMUTE:
 			volume_unmute();
-			volume_up(&volume_state.volume_setting);
+			volume_up(&vcs_state.volume_setting);
 			break;
 		case VOLUME_SET_ABSOLUTE:
 			if (len != 3) {
@@ -117,7 +115,7 @@ ssize_t write_volume_control_point(struct bt_conn *conn, const struct bt_gatt_at
 				return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
 			}
 			operand = ((uint8_t *)buf)[2]; // Casting it to uint8_t makes sure it's in 0-255 range
-			volume_set(&volume_state.volume_setting, operand);
+			volume_set(&vcs_state.volume_setting, operand);
 			break;
 		case VOLUME_UNMUTE:
 			volume_unmute();
