@@ -4,19 +4,20 @@
 #include <zephyr/kernel.h>
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/gatt.h>
+#include <zephyr/logging/log.h>
 
 #define VOLUME_STEP_SIZE 1
 #define VOLUME_MAX 255
 #define VOLUME_MIN 0
 
-extern const struct bt_gatt_service_static vcs_svc;
+extern const struct bt_gatt_service_static vcsSvc;
 
-enum errorCodes {
+enum ERROR_CODES {
   ERR_INVALID_CHANGE_COUNTER = 0x80,
   ERR_INVALID_OPCODE = 0x81,
 };
 
-enum opcodes {
+enum OPCODES {
   VOLUME_DOWN,
   VOLUME_UP,
   VOLUME_DOWN_UNMUTE,
@@ -26,26 +27,27 @@ enum opcodes {
   VOLUME_MUTE
 };
 
-struct volume_state {
-	uint8_t volume_setting;
+struct volumeState {
+	uint8_t volumeSetting;
 	uint8_t mute;
-	uint8_t change_counter;
+	uint8_t changeCounter;
 };
 
-extern uint8_t volume_flags;
-extern struct volume_state vcs_state;
+extern uint8_t volumeFlags;
+extern struct volumeState vcsState;
 
-void notify_volume_state(struct bt_conn *conn);
-ssize_t read_volume_state(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
-ssize_t read_volume_flags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
-void volume_state_cccd_changed(const struct bt_gatt_attr *attr, uint16_t value);
-void volume_flags_cccd_changed(const struct bt_gatt_attr *attr, uint16_t value);
-ssize_t write_volume_control_point(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
+void notifyVolumeState(struct bt_conn *conn);
+ssize_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
+ssize_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
+void volumeStateCccdChanged(const struct bt_gatt_attr *attr, uint16_t value);
+void volumeFlagsCccdChanged(const struct bt_gatt_attr *attr, uint16_t value);
+void volumeFlagsSet(uint8_t flags, struct bt_conn *conn);
+ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
 
-void volume_down(uint8_t *volume);
-void volume_up(uint8_t *volume);
-void volume_mute(void);
-void volume_unmute(void);
-void change_counter_increment(struct bt_conn *conn);
+void volumeDown(uint8_t *volume);
+void volumeUp(uint8_t *volume);
+void volumeMute(void);
+void volumeUnmute(void);
+void changeCounterIncrement(struct bt_conn *conn);
 
 #endif
