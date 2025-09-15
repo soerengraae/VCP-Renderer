@@ -38,7 +38,5 @@ int main(void)
 		return -1;
 	}
 
-	for (;;) {
-		k_sleep(K_SECONDS(1));
-	}
+	return 0;
 }
