@@ -75,7 +75,7 @@ void bt_ready(int err)
 		return;
 	}
 
-	LOG_DBG("Bluetooth ready, starting advertising\n");
+	LOG_DBG("Bluetooth ready\n");
 
 	k_work_init(&adv_start_work, adv_start_handler);
 	k_work_submit(&adv_start_work);

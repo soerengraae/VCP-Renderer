@@ -6,7 +6,6 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/bluetooth/hci.h>
-#include <zephyr/drivers/gpio.h>
 #include <zephyr/logging/log.h>
 #include "volumeControlService.h"
 
