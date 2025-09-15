@@ -54,22 +54,27 @@ void volumeFlagsSet(uint8_t flags, struct bt_conn *conn) {
 // Opcode implementations
 void volumeDown(uint8_t *volume) {
 	*volume = *volume == VOLUME_MIN ? VOLUME_MIN : *volume - VOLUME_STEP_SIZE; // Fulfills equation requirement Volume_Setting = max(VolumeSetting - Step Size, 0)
+	LOG_DBG("Volume down: %d\n", *volume);
 }
 
 void volumeUp(uint8_t *volume) {
 	*volume = *volume == VOLUME_MAX ? VOLUME_MAX : *volume + VOLUME_STEP_SIZE; // Fulfills equation requirement Volume_Setting = min(VolumeSetting + Step Size, 255)
+	LOG_DBG("Volume up: %d\n", *volume);
 }
 
 void volume_set(uint8_t *volume, uint8_t new_volume) {
 	*volume = new_volume; // Fulfills equation requirement Volume_Setting = New Volume
+	LOG_DBG("Volume set: %d\n", *volume);
 }
 
 void volumeUnmute(void) {
 	vcsState.mute = 0;
+	LOG_DBG("Volume unmuted\n");
 }
 
 void volumeMute(void) {
 	vcsState.mute = 1;
+	LOG_DBG("Volume muted\n");
 }
 
 void changeCounterIncrement(struct bt_conn *conn) {
