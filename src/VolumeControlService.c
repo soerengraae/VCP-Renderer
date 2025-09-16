@@ -1,15 +1,29 @@
+/**
+ * @file volumeControlService.c
+ * @brief Bluetooth Volume Control Service implementation
+ *
+ * Implements the Volume Control Service GATT characteristics and handlers
+ * according to the Bluetooth Volume Control Profile specification.
+ */
+
 #include "volumeControlService.h"
 
 LOG_MODULE_REGISTER(vcs, 4);
 
+/** @brief Volume flags state for Volume Flags characteristic (0x2B7F) */
 uint8_t volumeFlags = 0x00;
+
+/** @brief Track if Volume State notifications are enabled via CCCD */
 static bool notifyStateEnabled;
+
+/** @brief Track if Volume Flags notifications are enabled via CCCD */
 static bool notifyFlagsEnabled;
 
+/** @brief Current volume state - initialized to mid-range volume, unmuted */
 struct volumeState vcsState = {
-	.volumeSetting = 128,
-	.mute = 0,
-	.changeCounter = 0,
+	.volumeSetting = 128,  // Mid-range volume
+	.mute = 0,            // Unmuted
+	.changeCounter = 0,   // Initial synchronization counter
 };
 
 void notifyVolumeState(struct bt_conn *conn) {
@@ -44,8 +58,10 @@ void volumeFlagsCccdChanged(const struct bt_gatt_attr *attr, uint16_t value)
 	notifyFlagsEnabled = (value == BT_GATT_CCC_NOTIFY);
 }
 
-/* The flags should ideally be stored in non-volatile memory along with the volume state
-	 that is however not implemented. */
+/**
+ * @note The flags should ideally be stored in non-volatile memory along with the volume state
+ *       but that is however not implemented in this demonstration.
+ */
 void volumeFlagsSet(uint8_t flags, struct bt_conn *conn) {
 	volumeFlags = flags;
 	if (notifyFlagsEnabled) {
@@ -53,19 +69,35 @@ void volumeFlagsSet(uint8_t flags, struct bt_conn *conn) {
 	}
 }
 
-// Opcode implementations
+/* ========== Volume Control Opcode Implementations ========== */
+
+/**
+ * @brief Implements VCP VOLUME_DOWN opcode
+ * @details Decreases volume by VOLUME_STEP_SIZE with lower bound protection.
+ *          Fulfills VCP equation: Volume_Setting = max(VolumeSetting - Step Size, 0)
+ */
 void volumeDown(uint8_t *volume) {
-	*volume = *volume == VOLUME_MIN ? VOLUME_MIN : *volume - VOLUME_STEP_SIZE; // Fulfills equation requirement Volume_Setting = max(VolumeSetting - Step Size, 0)
+	*volume = *volume == VOLUME_MIN ? VOLUME_MIN : *volume - VOLUME_STEP_SIZE;
 	LOG_DBG("Volume down: %d\n", *volume);
 }
 
+/**
+ * @brief Implements VCP VOLUME_UP opcode
+ * @details Increases volume by VOLUME_STEP_SIZE with upper bound protection.
+ *          Fulfills VCP equation: Volume_Setting = min(VolumeSetting + Step Size, 255)
+ */
 void volumeUp(uint8_t *volume) {
-	*volume = *volume == VOLUME_MAX ? VOLUME_MAX : *volume + VOLUME_STEP_SIZE; // Fulfills equation requirement Volume_Setting = min(VolumeSetting + Step Size, 255)
+	*volume = *volume == VOLUME_MAX ? VOLUME_MAX : *volume + VOLUME_STEP_SIZE;
 	LOG_DBG("Volume up: %d\n", *volume);
 }
 
+/**
+ * @brief Implements VCP VOLUME_SET_ABSOLUTE opcode
+ * @details Sets volume to exact value without bounds checking (client responsibility).
+ *          Fulfills VCP equation: Volume_Setting = New Volume
+ */
 void volume_set(uint8_t *volume, uint8_t new_volume) {
-	*volume = new_volume; // Fulfills equation requirement Volume_Setting = New Volume
+	*volume = new_volume;
 	LOG_DBG("Volume set: %d\n", *volume);
 }
 
