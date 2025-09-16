@@ -6,7 +6,7 @@
 #include <zephyr/bluetooth/gatt.h>
 #include <zephyr/logging/log.h>
 
-#define VOLUME_STEP_SIZE 1
+#define VOLUME_STEP_SIZE 10
 #define VOLUME_MAX 255
 #define VOLUME_MIN 0
 
@@ -37,12 +37,12 @@ extern uint8_t volumeFlags;
 extern struct volumeState vcsState;
 
 void notifyVolumeState(struct bt_conn *conn);
-ssize_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
-ssize_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
+bt_gatt_attr_read_func_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
+bt_gatt_attr_read_func_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 void volumeStateCccdChanged(const struct bt_gatt_attr *attr, uint16_t value);
 void volumeFlagsCccdChanged(const struct bt_gatt_attr *attr, uint16_t value);
 void volumeFlagsSet(uint8_t flags, struct bt_conn *conn);
-ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
+bt_gatt_attr_write_func_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
 
 void volumeDown(uint8_t *volume);
 void volumeUp(uint8_t *volume);
