@@ -19,13 +19,13 @@ void notifyVolumeState(struct bt_conn *conn) {
 }
 
 /* GATT read handler for Volume State (0x2B7D) */
-ssize_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
+bt_gatt_attr_read_func_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &vcsState, sizeof(vcsState));
 }
 
 /* GATT read handler for Volume State Flags (0x2B7F) */
-ssize_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
+bt_gatt_attr_read_func_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &volumeFlags, sizeof(volumeFlags));
 }
@@ -44,6 +44,8 @@ void volumeFlagsCccdChanged(const struct bt_gatt_attr *attr, uint16_t value)
 	notifyFlagsEnabled = (value == BT_GATT_CCC_NOTIFY);
 }
 
+/* The flags should ideally be stored in non-volatile memory along with the volume state
+	 that is however not implemented. */
 void volumeFlagsSet(uint8_t flags, struct bt_conn *conn) {
 	volumeFlags = flags;
 	if (notifyFlagsEnabled) {
@@ -83,7 +85,7 @@ void changeCounterIncrement(struct bt_conn *conn) {
 }
 
 /* GATT write handler for Volume Control Point (0x2B7E) */
-ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
+bt_gatt_attr_write_func_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
 {
 	if (offset != 0 || (len != 2 && len != 3)) {
 		LOG_WRN("Invalid attribute length: %d\n", len);
@@ -100,20 +102,25 @@ ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr 
 
 	switch (opcode) {
 		case VOLUME_DOWN:
+			LOG_DBG("Opcode: VOLUME_DOWN\n");
 			volumeDown(&vcsState.volumeSetting);
 			break;
 		case VOLUME_UP:
+			LOG_DBG("Opcode: VOLUME_UP\n");
 			volumeUp(&vcsState.volumeSetting);
 			break;
 		case VOLUME_DOWN_UNMUTE:
-			volumeUnmute();
+			LOG_DBG("Opcode: VOLUME_DOWN_UNMUTE\n");
 			volumeDown(&vcsState.volumeSetting);
+			volumeUnmute();
 			break;
 		case VOLUME_UP_UNMUTE:
-			volumeUnmute();
+			LOG_DBG("Opcode: VOLUME_UP_UNMUTE\n");
 			volumeUp(&vcsState.volumeSetting);
+			volumeUnmute();
 			break;
 		case VOLUME_SET_ABSOLUTE:
+			LOG_DBG("Opcode: VOLUME_SET_ABSOLUTE\n");
 			if (len != 3) {
 				LOG_WRN("Invalid attribute length for VOLUME_SET_ABSOLUTE: %d\n", len);
 				return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
@@ -122,9 +129,11 @@ ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr 
 			volume_set(&vcsState.volumeSetting, operand);
 			break;
 		case VOLUME_UNMUTE:
+			LOG_DBG("Opcode: VOLUME_UNMUTE\n");
 			volumeUnmute();
 			break;
 		case VOLUME_MUTE:
+			LOG_DBG("Opcode: VOLUME_MUTE\n");
 			volumeMute();
 			break;
 
@@ -148,5 +157,5 @@ ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr 
 
 	changeCounterIncrement(conn);
 
-	return 0; // Success
+	return len; // Success - return number of bytes processed
 }
