@@ -32,12 +32,13 @@ BT_GATT_SERVICE_DEFINE(vcsSvc,
 
 void connected(struct bt_conn *conn, uint8_t err)
 {
-	(void)(conn);
+	char addr[BT_ADDR_LE_STR_LEN];
+	bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
 	if (err) {
 		LOG_ERR("Connection failed, err 0x%02x %s\n", err, bt_hci_err_to_str(err));
 	} else {
-		LOG_DBG("Connected\n");
+		LOG_DBG("Connected to %s\n", addr);
 		k_work_cancel_delayable(&statusLedWork);
 		gpio_pin_set_dt(&statusLed, 1); // Turn on LED
 	}

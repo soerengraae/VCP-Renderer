@@ -87,7 +87,7 @@ void notifyVolumeState(struct bt_conn *conn);
  * @param offset Read offset into characteristic value
  * @return Number of bytes read on success, negative error code on failure
  */
-bt_gatt_attr_read_func_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
+ssize_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 
 /**
  * @brief GATT read handler for Volume Flags characteristic (0x2B7F)
@@ -98,7 +98,7 @@ bt_gatt_attr_read_func_t readVolumeState(struct bt_conn *conn, const struct bt_g
  * @param offset Read offset into characteristic value
  * @return Number of bytes read on success, negative error code on failure
  */
-bt_gatt_attr_read_func_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
+ssize_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 
 /**
  * @brief Volume State CCCD change handler
@@ -133,7 +133,7 @@ void volumeFlagsSet(uint8_t flags, struct bt_conn *conn);
  * @param flags GATT write flags
  * @return Number of bytes processed on success, negative error code on failure
  */
-bt_gatt_attr_write_func_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
+ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
 
 /**
  * @brief Decrease volume by step size with bounds checking

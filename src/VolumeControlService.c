@@ -33,13 +33,13 @@ void notifyVolumeState(struct bt_conn *conn) {
 }
 
 /* GATT read handler for Volume State (0x2B7D) */
-bt_gatt_attr_read_func_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
+ssize_t readVolumeState(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &vcsState, sizeof(vcsState));
 }
 
 /* GATT read handler for Volume State Flags (0x2B7F) */
-bt_gatt_attr_read_func_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
+ssize_t readVolumeFlags(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &volumeFlags, sizeof(volumeFlags));
 }
@@ -117,7 +117,7 @@ void changeCounterIncrement(struct bt_conn *conn) {
 }
 
 /* GATT write handler for Volume Control Point (0x2B7E) */
-bt_gatt_attr_write_func_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
+ssize_t writeVolumeControlPoint(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
 {
 	if (offset != 0 || (len != 2 && len != 3)) {
 		LOG_WRN("Invalid attribute length: %d\n", len);
